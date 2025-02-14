@@ -1,6 +1,9 @@
 package com.axreng.backend.crawler;
 
+import com.axreng.backend.Main;
 import com.axreng.backend.dto.SearchResult;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
@@ -23,6 +26,7 @@ public class WebCrawler implements Runnable {
     private final AtomicBoolean isActive = new AtomicBoolean(true);
     private final Pattern linkPattern = Pattern.compile("href=[\"'](.*?)[\"']", Pattern.CASE_INSENSITIVE);
     private final Pattern tagPattern = Pattern.compile("<[^>]+>"); // remove tags HTML
+    private Logger LOG = LoggerFactory.getLogger(WebCrawler.class);
 
     public WebCrawler(String id, String keyword) {
         this.id = id;
@@ -32,7 +36,7 @@ public class WebCrawler implements Runnable {
     @Override
     public void run() {
         if (baseUrl == null) {
-            System.err.println("Error: BASE_URL not defined");
+            LOG.error("Error: BASE_URL not defined");
             isActive.set(false);
             return;
         }
@@ -78,7 +82,7 @@ public class WebCrawler implements Runnable {
             }
 
         } catch (Exception e) {
-            System.err.println(e.getMessage());
+            LOG.error(e.getMessage());
         }
     }
 

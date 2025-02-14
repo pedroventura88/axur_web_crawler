@@ -6,6 +6,8 @@ import com.axreng.backend.dto.SearchRequest;
 import com.axreng.backend.dto.SearchResponse;
 import com.axreng.backend.crawler.WebCrawler;
 import com.google.gson.Gson;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import static spark.Spark.*;
 
@@ -14,6 +16,7 @@ public class Main {
     private static final ConcurrentHashMap<String, WebCrawler> searches = new ConcurrentHashMap<>();
     private static final String APPLICATION_JSON = "application/json";
     private static final ExecutorService executor = Executors.newFixedThreadPool(10);
+    private static Logger LOG = LoggerFactory.getLogger(Main.class);
 
     public static void main(String[] args) {
         port(4567);
@@ -49,7 +52,8 @@ public class Main {
 
         //Adding a shutdown hook to correctly close the executor
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
-            System.out.println("Shutting down executor");
+
+            LOG.info("Shutting down executor");
             executor.shutdown();
 
             try {
