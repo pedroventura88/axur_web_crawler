@@ -6,6 +6,7 @@ import com.axreng.backend.dto.SearchRequest;
 import com.axreng.backend.dto.SearchResponse;
 import com.axreng.backend.crawler.WebCrawler;
 import com.google.gson.Gson;
+
 import static spark.Spark.*;
 
 public class Main {
@@ -19,7 +20,8 @@ public class Main {
 
         get("/crawl/:id", (req, res) -> {
             String id = req.params(":id");
-            WebCrawler task = searches.get(id);
+
+            WebCrawler task = searches.computeIfPresent(id, (key, value) -> value);
             if (task == null) {
                 res.status(404);
                 return "Search not found for ID: " + id;
@@ -44,6 +46,25 @@ public class Main {
             res.type(APPLICATION_JSON);
             return gson.toJson(new SearchResponse(id));
         });
+
+        //Adding a shutdown hook to correctly close the executor
+        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+            System.out.println("Shutting down executor");
+            executor.shutdown();
+
+            try {
+                for (int i = 0; i < 50 && !executor.isTerminated(); i++) {
+                    Thread.sleep(100);
+                }
+
+                if (!executor.isTerminated()) {
+                    executor.shutdownNow();
+                }
+
+            } catch (InterruptedException e) {
+                executor.shutdownNow();
+            }
+        }));
     }
 
     private static String generateId() {
