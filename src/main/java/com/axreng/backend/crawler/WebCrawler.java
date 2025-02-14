@@ -7,6 +7,8 @@ import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.util.HashSet;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.regex.Matcher;
@@ -16,12 +18,12 @@ public class WebCrawler implements Runnable {
     private final String id;
     private final String keyword;
     private final ConcurrentLinkedQueue<String> urls = new ConcurrentLinkedQueue<>();
-    private final HashSet<String> visitedUrls = new HashSet<>();
+    private final Set<String> visitedUrls = ConcurrentHashMap.newKeySet();
     private final String baseUrl = System.getenv("BASE_URL");
     private final AtomicBoolean isActive = new AtomicBoolean(true);
     private final Pattern linkPattern = Pattern.compile("href=[\"'](.*?)[\"']", Pattern.CASE_INSENSITIVE);
-    
-    
+    private final Pattern tagPattern = Pattern.compile("<[^>]+>"); // remove tags HTML
+
     public WebCrawler(String id, String keyword) {
         this.id = id;
         this.keyword = keyword.toLowerCase();
@@ -43,23 +45,31 @@ public class WebCrawler implements Runnable {
     }
     
     private void crawl(String url) {
-        if (!isActive.get() || visitedUrls.contains(url)) {
+        if (!isActive.get() || !visitedUrls.add(url)) { // visitedUrls.add return false if URL was already visited
             return;
         }
-        visitedUrls.add(url);
-        
+
         try {
             String html = fetchHtml(url);
 
-            if (html.contains(keyword)) {
+            // Remove tags HTML and convert to lowercase
+            String textContent = tagPattern.matcher(html).replaceAll(" ").toLowerCase();
+            textContent = decodeHtmlEntities(textContent); // Decoding HTML entities
+
+            // search keyword anywhere
+            Pattern keywordPattern = Pattern.compile("\\b" + Pattern.quote(keyword) + "\\b", Pattern.CASE_INSENSITIVE);
+            Matcher keywordMatcher = keywordPattern.matcher(textContent);
+
+            if (keywordMatcher.find()) {
                 urls.add(url);
             }
 
+            // extract and give following links
             Matcher matcher = linkPattern.matcher(html);
             while (matcher.find()) {
                 String nextUrl = matcher.group(1);
                 if (!nextUrl.startsWith("http")) {
-                    nextUrl = baseUrl + (nextUrl.startsWith("/") ? nextUrl : "/" + nextUrl);
+                    nextUrl = new URL(new URL(baseUrl), nextUrl).toString(); // Resolve relative URLs correctly
                 }
 
                 if (nextUrl.startsWith(baseUrl)) {
@@ -82,11 +92,20 @@ public class WebCrawler implements Runnable {
         try (BufferedReader in = new BufferedReader(new InputStreamReader(connection.getInputStream()))) {
             String line;
             while ((line = in.readLine()) != null) {
-                content.append(line.toLowerCase()).append("\n");
+                content.append(line).append("\n");
             }
         }
 
         return content.toString();
+    }
+
+    // Decoding of basic HTML
+    private String decodeHtmlEntities(String text) {
+        return text.replaceAll("&lt;", "<")
+                .replaceAll("&gt;", ">")
+                .replaceAll("&amp;", "&")
+                .replaceAll("&quot;", "\"")
+                .replaceAll("&apos;", "'");
     }
 
     public SearchResult getResult() {
